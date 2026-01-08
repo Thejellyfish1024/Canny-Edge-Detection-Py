@@ -7,7 +7,8 @@ import matplotlib.image as mpimg
 # 1. Load Image
 # -----------------------------
 # Replace 'image.jpg' with your local image file path
-img_path = "./R.png"
+img_path = "./test.jpeg"
+# img_path = "./R.png"
 
 ORG_IMG = mpimg.imread(img_path)
 
@@ -194,3 +195,6 @@ plt.imshow(FINAL_IMG, cmap='gray')
 plt.title("Edge Detected Image")
 plt.axis('off')
 plt.show()
+
+
+
