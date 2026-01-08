@@ -7,8 +7,8 @@ import matplotlib.image as mpimg
 # 1. Load Image
 # -----------------------------
 # Replace 'image.jpg' with your local image file path
-img_path = "./test.jpeg"
-# img_path = "./R.png"
+# img_path = "./test.jpeg"
+img_path = "./R.png"
 
 ORG_IMG = mpimg.imread(img_path)
 
@@ -131,23 +131,61 @@ def apply_nonmaximum_suppression(magnitude, theta):
                 Z[i,j] = 0
     return Z
 
+
+
 # -----------------------------
 # 6. Double Threshold
 # -----------------------------
-def apply_double_thresholding(img, low_ratio=0.05, high_ratio=0.15):
-    """
-    Apply double threshold to classify strong and weak edges
-    """
-    high = img.max() * high_ratio
-    low = high * low_ratio
+def compute_otsu_threshold(img):
+    # 1. Calculate Histogram
+    # We want to see how many pixels have intensity 0, 1, 2... up to 255
+    hist, bin_edges = np.histogram(img, bins=256, range=(0, 255))
+    
+    total_pixels = img.size
+    current_max = -1.0
+    threshold = 0
+    
+    # 2. Iterate through all possible thresholds (0-255)
+    for t in range(256):
+        # Background pixels (pixels <= t)
+        wB = np.sum(hist[:t]) / total_pixels
+        # Foreground pixels (pixels > t)
+        wF = np.sum(hist[t:]) / total_pixels
+        
+        if wB == 0 or wF == 0:
+            continue
+            
+        # Mean of background and foreground
+        mB = np.sum(np.arange(t) * hist[:t]) / np.sum(hist[:t])
+        mF = np.sum(np.arange(t, 256) * hist[t:]) / np.sum(hist[t:])
+        
+        # Calculate Between-Class Variance
+        # Formula: var = wB * wF * (mB - mF)^2
+        var_between = wB * wF * (mB - mF) ** 2
+        
+        # We want the threshold that maximizes the distance between the two classes
+        if var_between > current_max:
+            current_max = var_between
+            threshold = t
+            
+    return threshold
 
+
+# -----------------------------
+# 6. Double Threshold
+# -----------------------------
+def apply_double_thresholding(img, low_thresh, high_thresh):
     strong = 255
     weak = 75
 
-    strong_edges = (img >= high).astype(np.uint8) * strong
-    weak_edges = ((img >= low) & (img < high)).astype(np.uint8) * weak
+    strong_edges = np.zeros_like(img, dtype=np.uint8)
+    weak_edges = np.zeros_like(img, dtype=np.uint8)
+
+    strong_edges[img >= high_thresh] = strong
+    weak_edges[(img >= low_thresh) & (img < high_thresh)] = weak
 
     return strong_edges, weak_edges
+
 
 # -----------------------------
 # 7. Edge Tracking by Hysteresis
@@ -178,7 +216,13 @@ def apply_hysteresis(strong, weak):
 blurred_img = apply_gaussian_blur(ORG_IMG)
 gradient_magnitude, gradient_direction = apply_sobel(blurred_img)
 thin_edges = apply_nonmaximum_suppression(gradient_magnitude, gradient_direction)
-strong_edges, weak_edges = apply_double_thresholding(thin_edges)
+# --- How to use it in your Canny pipeline ---
+# After Non-Maximum Suppression (thin_edges):
+high_thresh = compute_otsu_threshold(thin_edges)
+low_thresh = high_thresh * 0.5  # Common heuristic: low is half of high
+
+strong_edges, weak_edges = apply_double_thresholding(thin_edges, low_thresh, high_thresh)
+# strong_edges, weak_edges = apply_double_thresholding(thin_edges)
 FINAL_IMG = apply_hysteresis(strong_edges, weak_edges)
 
 # -----------------------------
