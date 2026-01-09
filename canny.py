@@ -7,8 +7,8 @@ import matplotlib.image as mpimg
 # 1. Load Image
 # -----------------------------
 # Replace 'image.jpg' with your local image file path
-# img_path = "./test.jpeg"
-img_path = "./R.png"
+img_path = "./test2.jpeg"
+# img_path = "./R.png"
 
 ORG_IMG = mpimg.imread(img_path)
 
