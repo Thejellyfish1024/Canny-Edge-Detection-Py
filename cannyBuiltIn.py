@@ -2,14 +2,14 @@ import cv2
 import matplotlib.pyplot as plt
 # Load the image
 # image_path = './R.png'
-image_path = './test2.jpeg'
+image_path = './test3.jpeg'
 image = cv2.imread(image_path)
 # Convert the image to grayscale
 gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 # Apply Gaussian Blur to reduce noise
 blurred = cv2.GaussianBlur(gray, (5, 5), 1)
 # Apply Canny Edge Detection
-edges = cv2.Canny(blurred, threshold1=140, threshold2=170)
+edges = cv2.Canny(blurred, threshold1=75, threshold2=255)
 # Display the result using matplotlib
 plt.figure(figsize=(10, 8))
 plt.subplot(1, 2, 1)

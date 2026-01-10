@@ -30,71 +30,70 @@ def convert_to_grayscale(img):
 
 # 2. Convolution Process------------------------
 def apply_convolution(img, kernel):
-  kernel_size = kernel.shape
-  img_height, img_width = img.shape #Getting image height and width from gray scale image
-  convolved_image = np.zeros(img.shape)
-  # Looping through each pixel of the image
-  for img_row_idx in range(0,img_height):
-    for img_col_idx in range(0,img_width):
-        aggregate = 0
-        # For each pixel, loop through full kernel to calculate aggregated pixel value
-        for k_x in range(0, kernel_size[0]):
-            for k_y in range(0, kernel_size[1]):
-                # Getting the image index to be multiply with the kernel index
-                imageBoundaryOfHeight = int(img_row_idx + (k_x - int(kernel_size[0]/2)))
-                imageBoundaryOfWidth = int(img_col_idx + (k_y - int(kernel_size[0]/2)))
-                # Not considering the index outside the image boundery or assuming as 0
-                if imageBoundaryOfHeight>=0 and imageBoundaryOfHeight<img_height and imageBoundaryOfWidth>=0 and imageBoundaryOfWidth<img_width:
-                    # extract pixel value and multiply with kernel value
-                    pixel = img[imageBoundaryOfHeight, imageBoundaryOfWidth]
-                    # then sum all the neighbour pixels values and store
-                    aggregate = aggregate + int(pixel * kernel[k_x, k_y])
-        convolved_image[img_row_idx, img_col_idx] = aggregate
-  return convolved_image
+    """
+    Apply a convolution between an image and a kernel
+    """
+    # Get image and kernel dimensions
+    img_h, img_w = img.shape
+    k_h, k_w = kernel.shape
 
+    # Calculate padding
+    pad_h = k_h // 2
+    pad_w = k_w // 2
+
+    # Pad image with zeros
+    padded_img = np.pad(img, ((pad_h, pad_h), (pad_w, pad_w)), mode='constant', constant_values=0)
+    
+    # Prepare output image
+    output = np.zeros_like(img)
+    
+    # Convolution operation
+    for i in range(img_h):
+        for j in range(img_w):
+            # Extract the current region
+            region = padded_img[i:i+k_h, j:j+k_w]
+            # Element-wise multiplication and sum
+            output[i, j] = np.sum(region * kernel)
+    
+    return output
 # 3. Apply Gaussian Blur to remove noise-------------------
-def apply_gaussian_blur(img):
-  kernel_size = (5,5)
-  sigma = 1
-  gaussian_kernel = np.zeros(kernel_size)
+def apply_gaussian_blur(img, kernel_size=5, sigma=1.0):
+    """
+    Apply Gaussian Blur to remove noise
+    """
+    # Create Gaussian Kernel
+    ax = np.linspace(-(kernel_size // 2), kernel_size // 2, kernel_size)
+    xx, yy = np.meshgrid(ax, ax)
+    kernel = np.exp(-(xx**2 + yy**2) / (2 * sigma**2))
+    kernel = kernel / np.sum(kernel)  # Normalize
 
-  for kernel_row in range(kernel_size[0]):
-    row = kernel_row - int( kernel_size[0]/2 ) # calculating Index for each kernel row keeping kernel center at (0,0) | for (3,3) kernel row (-1,1)
-    for kernel_col in range(kernel_size[1]):
-      col = kernel_col - int( kernel_size[1]/2 ) # Calculating Index for each kernel column keeping kernel center at (0,0) | for (3,3) kernel col (-1,1)
-      # Applying formula for gussian kernel
-      gaussian_kernel[kernel_row, kernel_col] = (1/(2 * math.pi * sigma**2)) * (math.e ** (-1*( (row**2 + col**2)/ (2*sigma**2) )))
-
-  # Applying normalization on the kernel so that the sum of the kernel is <= 1. For the reason that it doesnot impact the image brightness
-  kernel_sum = np.sum(gaussian_kernel)
-  gaussian_kernel = gaussian_kernel / kernel_sum # will always be <=1 because, kernel pixel <= kernel_sum
-
-
-  smooth_image = apply_convolution(img, gaussian_kernel) # applying convolution using gaussian kernel
-  smooth_image = np.clip(smooth_image, 0, 255).astype(np.uint8) # Limiting pixel values to be 0 to 255, with data type as uint8
-
-  return smooth_image
+    # Apply convolution
+    blurred_img = apply_convolution(img, kernel)
+    return blurred_img
 
 # 4. Apply Sobel to extract magnitude and orientation of image-------------
 def apply_sobel(smooth_image):
-  # Horizontal gradient convolution kernel, Detects vertical edges
-  Sx = np.array([[-1, 0, 1],
+    # Sobel kernels
+    Sx = np.array([[-1, 0, 1],
                    [-2, 0, 2],
-                   [-1, 0, 1]])
-  # Vertical gradient convolution kernel, Detects horizontal edges
-  Sy = np.array([[-1, -2, -1],
-                   [0, 0, 0],
-                   [1, 2, 1]])
-  # Applying convolution on the smooth image using both Horizontal and Vertical gradient kernels
-  Gx = apply_convolution(smooth_image, Sx)
-  Gy = apply_convolution(smooth_image, Sy)
+                   [-1, 0, 1]], dtype=np.float32)
 
-  # Limiting values of Gx to 0.0001 to 255, so that Direction doesnot get invalid number
-  Gx = np.clip(Gx, 0.0001, 255)
-  magnitude = np.sqrt(Gx**2+Gy**2) #Applying formula for magnitude
-  magnitude = np.clip(magnitude, 0, 255).astype(np.uint8)
-  direction = np.arctan(Gy/Gx) #Applying formula for Direction
-  return (magnitude, direction)
+    Sy = np.array([[-1, -2, -1],
+                   [ 0,  0,  0],
+                   [ 1,  2,  1]], dtype=np.float32)
+
+    # Convolution
+    Gx = apply_convolution(smooth_image, Sx)
+    Gy = apply_convolution(smooth_image, Sy)
+
+    # DO NOT CLIP gradients ❌
+    # Compute magnitude (keep float)
+    magnitude = np.sqrt(Gx**2 + Gy**2)
+
+    # Compute direction (correct way)
+    direction = np.arctan2(Gy, Gx)
+
+    return magnitude, direction
 
 # 5. Apply Non-Maximum Suppression to extract thik and thin edge-----------------
 def apply_nonmaximum_suppression(magnitude, direction):
@@ -145,40 +144,67 @@ def apply_nonmaximum_suppression(magnitude, direction):
 
 # 6. Double Thresholding---------------------------------
 def apply_double_thresholding(img, low_ratio=0.05, high_ratio=0.15):
-    """
-    Apply double threshold to classify strong and weak edges
-    """
+    img_h, img_w = img.shape
+
     high = img.max() * high_ratio
     low = high * low_ratio
 
     strong = 255
     weak = 75
 
-    strong_edges = (img >= high).astype(np.uint8) * strong
-    weak_edges = ((img >= low) & (img < high)).astype(np.uint8) * weak
+    strong_edges = np.zeros((img_h, img_w), dtype=np.uint8)
+    weak_edges = np.zeros((img_h, img_w), dtype=np.uint8)
+
+    for i in range(img_h):
+        for j in range(img_w):
+            pixel = img[i, j]
+
+            # Strong edge
+            if pixel >= high:
+                strong_edges[i, j] = strong
+            else:
+                strong_edges[i, j] = 0
+
+            # Weak edge
+            if low <= pixel < high:
+                weak_edges[i, j] = weak
+            else:
+                weak_edges[i, j] = 0
 
     return strong_edges, weak_edges
 
+
 # 7. Apply Edge Tracking by Hysteresis to get the final image----------------------
 def apply_hysteresis(strong, weak):
-    """
-    Connect weak edges to strong edges if neighbors are strong
-    """
     img_h, img_w = strong.shape
     final_img = np.copy(strong)
-    
-    # Directions (8 neighbors)
-    dx = [-1, -1, -1, 0, 0, 1, 1, 1]
-    dy = [-1, 0, 1, -1, 1, -1, 0, 1]
 
-    # Process weak edges
-    for i in range(1, img_h-1):
-        for j in range(1, img_w-1):
-            if weak[i,j] != 0:
-                # Check 8 neighbors
-                if any(final_img[i+dx[k], j+dy[k]] == 255 for k in range(8)):
-                    final_img[i,j] = 255
+    # 8-connected neighbors
+    dx = [-1, -1, -1, 0, 0, 1, 1, 1]
+    dy = [-1,  0,  1, -1, 1, -1, 0, 1]
+
+    for i in range(1, img_h - 1):
+        for j in range(1, img_w - 1):
+
+            # Process only weak edges
+            if weak[i, j] != 0:
+                connected_to_strong = False
+
+                for k in range(8):
+                    ni = i + dx[k]
+                    nj = j + dy[k]
+
+                    if final_img[ni, nj] == 255:
+                        connected_to_strong = True
+                        break
+
+                if connected_to_strong:
+                    final_img[i, j] = 255
+                else:
+                    final_img[i, j] = 0
+
     return final_img
+
 
 
 #  Run Full Canny Edge Detection -----------------------------

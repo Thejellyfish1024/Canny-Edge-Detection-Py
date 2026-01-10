@@ -7,7 +7,7 @@ import matplotlib.image as mpimg
 # 1. Load Image
 # -----------------------------
 # Replace 'image.jpg' with your local image file path
-img_path = "./test2.jpeg"
+img_path = "./R.png"
 # img_path = "./R.png"
 
 ORG_IMG = mpimg.imread(img_path)
@@ -174,18 +174,36 @@ def compute_otsu_threshold(img):
 # -----------------------------
 # 6. Double Threshold
 # -----------------------------
-def apply_double_thresholding(img, low_thresh, high_thresh):
+
+def apply_double_thresholding(img, low_ratio=0.2, high_ratio=0.30):
+    img_h, img_w = img.shape
+
+    high = img.max() * high_ratio
+    low = high * low_ratio
+
     strong = 255
     weak = 75
 
-    strong_edges = np.zeros_like(img, dtype=np.uint8)
-    weak_edges = np.zeros_like(img, dtype=np.uint8)
+    strong_edges = np.zeros((img_h, img_w), dtype=np.uint8)
+    weak_edges = np.zeros((img_h, img_w), dtype=np.uint8)
 
-    strong_edges[img >= high_thresh] = strong
-    weak_edges[(img >= low_thresh) & (img < high_thresh)] = weak
+    for i in range(img_h):
+        for j in range(img_w):
+            pixel = img[i, j]
+
+            # Strong edge
+            if pixel >= high:
+                strong_edges[i, j] = strong
+            else:
+                strong_edges[i, j] = 0
+
+            # Weak edge
+            if low <= pixel < high:
+                weak_edges[i, j] = weak
+            else:
+                weak_edges[i, j] = 0
 
     return strong_edges, weak_edges
-
 
 # -----------------------------
 # 7. Edge Tracking by Hysteresis
@@ -210,6 +228,7 @@ def apply_hysteresis(strong, weak):
                     final_img[i,j] = 255
     return final_img
 
+
 # -----------------------------
 # 8. Run Full Canny Edge Detection
 # -----------------------------
@@ -218,10 +237,8 @@ gradient_magnitude, gradient_direction = apply_sobel(blurred_img)
 thin_edges = apply_nonmaximum_suppression(gradient_magnitude, gradient_direction)
 # --- How to use it in your Canny pipeline ---
 # After Non-Maximum Suppression (thin_edges):
-high_thresh = compute_otsu_threshold(thin_edges)
-low_thresh = high_thresh * 0.5  # Common heuristic: low is half of high
+strong_edges, weak_edges = apply_double_thresholding(thin_edges)
 
-strong_edges, weak_edges = apply_double_thresholding(thin_edges, low_thresh, high_thresh)
 # strong_edges, weak_edges = apply_double_thresholding(thin_edges)
 FINAL_IMG = apply_hysteresis(strong_edges, weak_edges)
 
@@ -239,6 +256,8 @@ plt.imshow(FINAL_IMG, cmap='gray')
 plt.title("Edge Detected Image")
 plt.axis('off')
 plt.show()
+
+
 
 
 
