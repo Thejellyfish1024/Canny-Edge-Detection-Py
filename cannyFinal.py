@@ -143,67 +143,116 @@ def apply_nonmaximum_suppression(magnitude, direction):
 
 
 # 6. Double Thresholding---------------------------------
-def apply_double_thresholding(img, low_ratio=0.05, high_ratio=0.15):
+# Function to apply double thresholding on a grayscale image
+def apply_double_thresholding(img, low_ratio=0.2, high_ratio=0.30):
+
+    # Get the height (rows) and width (columns) of the image
     img_h, img_w = img.shape
 
+    # Calculate the high threshold value as a percentage of the maximum pixel intensity
     high = img.max() * high_ratio
+
+    # Calculate the low threshold value as a percentage of the high threshold
     low = high * low_ratio
 
+    # Define the pixel value used to mark strong edges
     strong = 255
+
+    # Define the pixel value used to mark weak edges
     weak = 75
 
+    # Create an empty image to store strong edge pixels
     strong_edges = np.zeros((img_h, img_w), dtype=np.uint8)
+
+    # Create an empty image to store weak edge pixels
     weak_edges = np.zeros((img_h, img_w), dtype=np.uint8)
 
+    # Loop through each row of the image
     for i in range(img_h):
+
+        # Loop through each column of the image
         for j in range(img_w):
+
+            # Read the intensity value of the current pixel
             pixel = img[i, j]
 
-            # Strong edge
+            # Check if the pixel intensity is greater than or equal to the high threshold
+            # If true, mark it as a strong edge
             if pixel >= high:
                 strong_edges[i, j] = strong
             else:
+                # Otherwise, mark it as a non-edge (0)
                 strong_edges[i, j] = 0
 
-            # Weak edge
+            # Check if the pixel intensity lies between the low and high thresholds
+            # Such pixels are considered weak edges
             if low <= pixel < high:
                 weak_edges[i, j] = weak
             else:
+                # Otherwise, mark it as a non-edge (0)
                 weak_edges[i, j] = 0
 
+    # Return both the strong edge image and the weak edge image
     return strong_edges, weak_edges
 
 
+
 # 7. Apply Edge Tracking by Hysteresis to get the final image----------------------
+# Function to apply edge tracking by hysteresis
 def apply_hysteresis(strong, weak):
+
+    # Get the height (rows) and width (columns) of the image
     img_h, img_w = strong.shape
+
+    # Create the final edge image by copying the strong edge image
+    # Strong edges are always preserved
     final_img = np.copy(strong)
 
-    # 8-connected neighbors
+    # Define relative positions of the 8-connected neighboring pixels
+    # These cover all directions around a pixel (N, S, E, W, and diagonals)
     dx = [-1, -1, -1, 0, 0, 1, 1, 1]
     dy = [-1,  0,  1, -1, 1, -1, 0, 1]
 
+    # Loop through the image excluding border pixels
+    # Border pixels are skipped to avoid out-of-bounds access
     for i in range(1, img_h - 1):
+
+        # Loop through each column excluding borders
         for j in range(1, img_w - 1):
 
-            # Process only weak edges
+            # Process only pixels that are classified as weak edges
             if weak[i, j] != 0:
+
+                # Flag to check whether the weak edge is connected to a strong edge
                 connected_to_strong = False
 
+                # Check all 8 neighboring pixels
                 for k in range(8):
+
+                    # Compute the row index of the neighboring pixel
                     ni = i + dx[k]
+
+                    # Compute the column index of the neighboring pixel
                     nj = j + dy[k]
 
+                    # If any neighboring pixel is a strong edge
                     if final_img[ni, nj] == 255:
+                        # Mark this weak pixel as connected to a strong edge
                         connected_to_strong = True
+                        # Stop checking further neighbors
                         break
 
+                # If the weak edge is connected to at least one strong edge
                 if connected_to_strong:
+                    # Promote the weak edge to a strong edge
                     final_img[i, j] = 255
                 else:
+                    # Otherwise, suppress the weak edge (remove it)
                     final_img[i, j] = 0
 
+    # Return the final edge-detected image after hysteresis
     return final_img
+
 
 
 
